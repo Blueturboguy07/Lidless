@@ -48,6 +48,12 @@ struct MenuContent: View {
                 .padding(.horizontal, hInset)
                 .padding(.vertical, 10)
 
+            if state.menuBarIconHidden {
+                HiddenIconNotice(compact: true)
+                    .padding(.horizontal, hInset)
+                    .padding(.bottom, 10)
+            }
+
             // Three disjoint slots, strongest first: something changed the flag
             // behind our back, we couldn't confirm our own change, and the
             // ordinary error/safety note.

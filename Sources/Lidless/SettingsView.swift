@@ -11,7 +11,8 @@ struct SettingsView: View {
     @EnvironmentObject var state: AppState
     @EnvironmentObject var updater: UpdaterController
 
-    private let repoURL = URL(string: "https://github.com/nghialuong/Lidless")!
+    private let repoURL = URL(string: "https://github.com/Blueturboguy07/Lidless")!
+    private let upstreamURL = URL(string: "https://github.com/nghialuong/Lidless")!
 
     var body: some View {
         Form {
@@ -21,6 +22,14 @@ struct SettingsView: View {
                     set: { state.setLaunchAtLogin($0) }
                 ))
                 Button("Show Setup Guide…") { state.showOnboarding() }
+                if state.menuBarIconHidden {
+                    HiddenIconNotice()
+                } else {
+                    LabeledContent("Shortcut") {
+                        Text("\(HotKeyManager.defaultDisplayName) opens the Lidless menu")
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             Section {
@@ -69,12 +78,13 @@ struct SettingsView: View {
                         Text("Version \(state.appVersion)")
                             .font(.callout)
                             .foregroundStyle(.secondary)
-                        Text("Created by Nghia Luong")
+                        Text("Created by Nghia Luong · publik fork")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }
                 }
                 Link("View on GitHub", destination: repoURL)
+                Link("Original project by Nghia Luong", destination: upstreamURL)
             }
         }
         .formStyle(.grouped)

@@ -10,7 +10,7 @@ final class HelperManager {
     /// Helper label / Mach service name, derived from this app's bundle id so the
     /// `.dev` build talks to its own daemon and never the Release one.
     private var helperLabel: String {
-        LidlessHelper.label(appBundleID: Bundle.main.bundleIdentifier ?? "com.nghialuong.lidless")
+        LidlessHelper.label(appBundleID: Bundle.main.bundleIdentifier ?? "com.publikhq.lidless")
     }
 
     /// The generated LaunchDaemon plist embedded at `Contents/Library/LaunchDaemons`.

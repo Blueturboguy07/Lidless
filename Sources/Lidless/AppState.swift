@@ -66,6 +66,11 @@ final class AppState: ObservableObject {
     /// Whether the user has finished first-run onboarding (persisted).
     @Published var onboardingComplete = false
 
+    /// True when the menu-bar icon can't be clicked: on a crowded bar a new
+    /// status item is the leftmost, and on a MacBook that slot can sit behind
+    /// the camera housing. The menu still opens via `openMenu()` / ⌃⌥L.
+    @Published var menuBarIconHidden = false
+
     private let helper = HelperManager()
     /// Reads the flag on every path — `pmset -g` needs no privileges — and also
     /// writes it when the helper isn't installed.
@@ -112,6 +117,8 @@ final class AppState: ObservableObject {
     /// True while the onboarding window is open and not yet completed.
     private var onboardingActive = false
     private var didBecomeActiveObserver: NSObjectProtocol?
+    private var screenObserver: NSObjectProtocol?
+    private var hotKey: HotKeyManager?
 
     init() {
         settings = store.load()
@@ -151,6 +158,19 @@ final class AppState: ObservableObject {
                 self?.refreshState()
             }
         }
+        // SwiftUI creates the status item after this object exists, so look for
+        // it a moment later, then again whenever the display layout changes (the
+        // notch comes and goes with the built-in screen) and on every tick.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            self?.refreshMenuBarIconVisibility()
+        }
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.refreshMenuBarIconVisibility() }
+        }
+        // A way in that doesn't depend on the icon being reachable.
+        hotKey = HotKeyManager { [weak self] in self?.openMenu() }
         // First launch shows onboarding once (persisted so closing it early won't
         // re-nag). A relaunch triggered mid-onboarding resumes the flow instead.
         if store.loadResumeOnboarding() {
@@ -166,6 +186,9 @@ final class AppState: ObservableObject {
     deinit {
         if let didBecomeActiveObserver {
             NotificationCenter.default.removeObserver(didBecomeActiveObserver)
+        }
+        if let screenObserver {
+            NotificationCenter.default.removeObserver(screenObserver)
         }
     }
 
@@ -191,6 +214,20 @@ final class AppState: ObservableObject {
     /// Present the Settings window from the menu-bar popover.
     func showSettings() {
         settingsWindow.show()
+    }
+
+    // MARK: Menu-bar icon
+
+    /// Re-read whether the status item can be clicked. Cheap — a few window frames.
+    func refreshMenuBarIconVisibility() {
+        menuBarIconHidden = MenuBarIconMonitor.currentVisibility() != .visible
+    }
+
+    /// Open the menu-bar popover without a click on the icon — from the ⌃⌥L
+    /// hotkey or a button in one of our windows — so the menu stays reachable
+    /// when the icon isn't.
+    func openMenu() {
+        MenuBarExtraPanel.open()
     }
 
     func updateSettings(_ new: SafetySettings) {
@@ -443,12 +480,25 @@ final class AppState: ObservableObject {
         // If this happened mid-onboarding, resume the flow after the relaunch.
         if onboardingActive { store.saveResumeOnboarding(true) }
 
-        NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Background helper enabled"
         alert.informativeText = "Restart Lidless to finish connecting to the background helper."
         alert.addButton(withTitle: "Restart Now")
         alert.addButton(withTitle: "Later")
+
+        // This can fire from the 30s tick with the user anywhere. An app-modal
+        // alert freezes the menu-bar icon until it's dismissed — and an
+        // accessory app can't force itself forward, so the alert may sit behind
+        // whatever they're looking at while the icon appears dead. Attach it to
+        // one of our windows as a sheet whenever one is up.
+        if let host = onboarding.hostWindow ?? settingsWindow.window, host.isVisible {
+            AppActivation.bringToFront(host)
+            alert.beginSheetModal(for: host) { [weak self] response in
+                if response == .alertFirstButtonReturn { self?.relaunch() }
+            }
+            return
+        }
+        AppActivation.activateApp()
         if alert.runModal() == .alertFirstButtonReturn {
             relaunch()
         }
@@ -842,6 +892,7 @@ final class AppState: ObservableObject {
         // Backstop for the didBecomeActive observer: catch a helper approval even
         // if the app never lost/regained active state.
         recheckHelper()
+        refreshMenuBarIconVisibility()
         // Advance auto mode's write claim. A concluded write reopens here — this
         // is where its retry comes from. One still outstanding does not: this tick
         // may be landing moments after the dispatch, and reopening would put a

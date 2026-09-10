@@ -43,6 +43,31 @@ enum MenuBarExtraPanel {
         classNames.indices.filter { isStatusBarWindow(className: classNames[$0]) }
     }
 
+    /// Open the popover if it's closed. No-op when it's already showing.
+    ///
+    /// The status item belongs to SwiftUI, which offers no API to present its
+    /// panel, so this clicks the item's button the way `dismiss` does. It's how
+    /// the ⌃⌥L hotkey and the "Open the Lidless menu" buttons get the menu up
+    /// when the icon itself is out of reach (see `MenuBarIconMonitor`).
+    static func open() {
+        open(windows: NSApp.windows)
+    }
+
+    static func open(windows: [NSWindow]) {
+        // Already up: leave it. (Checking the real window rather than the
+        // button state, which can go stale after a dismissal we didn't drive.)
+        if windows.contains(where: { isPanelWindow(className: $0.className) && $0.isVisible }) { return }
+
+        for window in windows where isStatusBarWindow(className: window.className) {
+            guard window.responds(to: NSSelectorFromString("statusItem")),
+                  let item = window.value(forKey: "statusItem") as? NSStatusItem,
+                  let button = item.button
+            else { continue }
+            button.performClick(button)
+            return
+        }
+    }
+
     /// Close the popover if it's open. No-op when it isn't.
     static func dismiss() {
         dismiss(windows: NSApp.windows)

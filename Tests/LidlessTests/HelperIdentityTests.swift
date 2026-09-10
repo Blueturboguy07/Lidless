@@ -5,7 +5,7 @@ import XCTest
 final class HelperIdentityTests: XCTestCase {
 
     func testAppBundleIDIsInverseOfLabel() {
-        for bundleID in ["com.nghialuong.lidless", "com.nghialuong.lidless.dev"] {
+        for bundleID in ["com.publikhq.lidless", "com.publikhq.lidless.dev"] {
             let label = LidlessHelper.label(appBundleID: bundleID)
             XCTAssertEqual(LidlessHelper.appBundleID(fromLabel: label), bundleID)
         }
@@ -17,7 +17,7 @@ final class HelperIdentityTests: XCTestCase {
     /// the real one.
     func testAppBundleIDHandlesFallbackLabel() {
         XCTAssertEqual(LidlessHelper.appBundleID(fromLabel: LidlessHelper.fallbackLabel),
-                       "com.nghialuong.lidless")
+                       "com.publikhq.lidless")
     }
 
     func testAppBundleIDLeavesUnexpectedLabelAlone() {
@@ -30,8 +30,8 @@ final class HelperIdentityTests: XCTestCase {
     /// an impostor using the name, the anchor alone admits every Apple-signed
     /// app, the team alone admits anything else we ship.
     func testRequirementPinsIdentityAnchorAndTeam() {
-        let requirement = LidlessHelper.codeSigningRequirement(appBundleID: "com.nghialuong.lidless")
-        XCTAssertTrue(requirement.contains("identifier \"com.nghialuong.lidless\""))
+        let requirement = LidlessHelper.codeSigningRequirement(appBundleID: "com.publikhq.lidless")
+        XCTAssertTrue(requirement.contains("identifier \"com.publikhq.lidless\""))
         XCTAssertTrue(requirement.contains("anchor apple generic"))
         XCTAssertTrue(requirement.contains("certificate leaf[subject.OU] = \"\(LidlessHelper.teamID)\""))
     }
@@ -40,8 +40,8 @@ final class HelperIdentityTests: XCTestCase {
     /// keeping their daemons isolated is the whole point of the separate ids.
     func testRequirementDiffersBetweenDebugAndReleaseIdentifiers() {
         XCTAssertNotEqual(
-            LidlessHelper.codeSigningRequirement(appBundleID: "com.nghialuong.lidless"),
-            LidlessHelper.codeSigningRequirement(appBundleID: "com.nghialuong.lidless.dev")
+            LidlessHelper.codeSigningRequirement(appBundleID: "com.publikhq.lidless"),
+            LidlessHelper.codeSigningRequirement(appBundleID: "com.publikhq.lidless.dev")
         )
     }
 
@@ -49,7 +49,7 @@ final class HelperIdentityTests: XCTestCase {
     /// which in the helper means dying on every incoming connection. Keep it to
     /// one line with nothing stray in it.
     func testRequirementIsASingleNonEmptyLine() {
-        let requirement = LidlessHelper.codeSigningRequirement(appBundleID: "com.nghialuong.lidless")
+        let requirement = LidlessHelper.codeSigningRequirement(appBundleID: "com.publikhq.lidless")
         XCTAssertFalse(requirement.contains("\n"))
         XCTAssertFalse(requirement.isEmpty)
     }
@@ -59,7 +59,7 @@ final class HelperIdentityTests: XCTestCase {
     /// inputs — the helper from its launchd label, the app from its bundle id —
     /// so a drift between them locks the app out of its own helper.
     func testRequirementFromLabelMatchesRequirementFromBundleID() {
-        for bundleID in ["com.nghialuong.lidless", "com.nghialuong.lidless.dev"] {
+        for bundleID in ["com.publikhq.lidless", "com.publikhq.lidless.dev"] {
             let label = LidlessHelper.label(appBundleID: bundleID)
             XCTAssertEqual(
                 LidlessHelper.codeSigningRequirement(appBundleID: LidlessHelper.appBundleID(fromLabel: label)),

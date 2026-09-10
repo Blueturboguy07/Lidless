@@ -34,7 +34,7 @@ final class HelperListenerDelegate: NSObject, NSXPCListenerDelegate {
 /// The actual privileged work. Runs as root, so it can call `pmset` directly
 /// with no admin prompt. Guards against a stuck-awake state with a watchdog.
 final class HelperService: NSObject, LidlessHelperProtocol {
-    private let queue = DispatchQueue(label: "com.nghialuong.lidless.helper.state")
+    private let queue = DispatchQueue(label: "com.publikhq.lidless.helper.state")
     private var lastHeartbeat = Date()
     private var keepAwake = false
     private let watchdogTimeout: TimeInterval = 90

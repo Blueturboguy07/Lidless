@@ -121,10 +121,19 @@ struct OnboardingView: View {
     private var doneStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             header(symbol: "checkmark.circle.fill", title: "You're all set")
+                .onAppear { state.refreshMenuBarIconVisibility() }
             Text("Click the Lidless icon in the menu bar and flip **Keep awake with lid closed** whenever you need it. Safety options live in Settings.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if state.menuBarIconHidden {
+                HiddenIconNotice()
+            } else {
+                Label("\(HotKeyManager.defaultDisplayName) opens the Lidless menu from anywhere.", systemImage: "keyboard")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
 
             Toggle("Launch Lidless at login", isOn: Binding(
                 get: { state.launchAtLogin },

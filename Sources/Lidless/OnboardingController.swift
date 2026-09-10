@@ -13,6 +13,9 @@ final class OnboardingController {
     private weak var state: AppState?
     private var window: NSWindow?
 
+    /// The window, when it has been built — for attaching sheets to it.
+    var hostWindow: NSWindow? { window }
+
     init(state: AppState) {
         self.state = state
     }
@@ -31,13 +34,18 @@ final class OnboardingController {
             win.titlebarAppearsTransparent = true
             win.isMovableByWindowBackground = true
             win.isReleasedWhenClosed = false
+            // Follow the user to their current Space, and don't vanish every
+            // time this accessory app deactivates (which is constantly).
+            win.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+            win.hidesOnDeactivate = false
             win.center()
             window = win
         }
 
-        NSApp.activate(ignoringOtherApps: true)
-        window?.makeKeyAndOrderFront(nil)
-        window?.center()
+        if let window {
+            window.center()
+            AppActivation.bringToFront(window)
+        }
     }
 
     func close() {

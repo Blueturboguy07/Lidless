@@ -1,12 +1,41 @@
-# Lidless
+# Lidless (publik fork)
 
-[![Downloads](https://img.shields.io/github/downloads/nghialuong/Lidless/total)](https://github.com/nghialuong/Lidless/releases)
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/nghialuong)
+[![Downloads](https://img.shields.io/github/downloads/Blueturboguy07/Lidless/total)](https://github.com/Blueturboguy07/Lidless/releases)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20the%20original%20author-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/nghialuong)
 
 A tiny macOS menu-bar app that keeps your Mac running **even with the lid closed** —
 so coding agents (Claude Code, Codex, etc.) keep working while you move around.
 
-> Open source under the [MIT License](LICENSE).
+> Open source under the [MIT License](LICENSE). Lidless is by
+> [Nghia Luong](https://github.com/nghialuong/Lidless); this fork is maintained for
+> [publik](https://publikhq.com/lidless) and ships its own signed, notarized builds.
+
+## What this fork fixes
+
+**"I installed Lidless and the menu never opens."** On a MacBook with a crowded
+menu bar, macOS puts the *newest* status item leftmost — which on notched
+MacBooks is *behind the camera housing*. The icon exists (accessibility can press
+it) but no click can reach it, and the first-run Welcome window opened *behind*
+whatever you had in front, so the app looked dead. Reproduced on a fresh 0.1.3
+install with 12 other menu-bar items: the Lidless item sat at x 754–790 on a bar
+whose notch spans x 663–848.
+
+- **Notch detection.** Lidless now checks where its status item actually landed
+  (`MenuBarIconMonitor`, pure geometry in `MenuBarIconVisibility`) and says so —
+  at the end of onboarding, in Settings, and inside the menu itself.
+- **⌃⌥L opens the menu from anywhere.** A global shortcut (Carbon hotkey, no
+  Accessibility permission needed) so the menu is reachable even when the icon
+  isn't. Onboarding and Settings also get an *Open the Lidless menu* button.
+- **The Welcome window shows up in front.** Since macOS 14 an accessory app
+  can't force activation; the window is now ordered front regardless.
+- **No app-modal alert from a timer.** "Restart to finish connecting the helper"
+  could pop up to 30 s after approval as an app-modal alert, freezing the
+  menu-bar icon (possibly behind another app). It's a sheet on our own window now.
+
+Everything else — the root helper, watchdog, safety guards, timer, Sparkle — is
+upstream Lidless, unchanged. Bundle id is `com.publikhq.lidless` (helper
+`com.publikhq.lidless.helper`), signed with publik's Developer ID, updates from
+this repo's own appcast.
 
 <p align="center">
   <img src="docs/menu-popover.png" alt="Lidless menu bar popover — keep-awake toggle, helper status, battery, and safety controls" width="420">
@@ -81,6 +110,7 @@ Publishes the DMG to a GitHub Release and writes the feed to `docs/appcast.xml`
 - **App complete** — icon, launch-at-login, onboarding, About, release pipeline. ✅
 - **Auto-update** — Sparkle with an EdDSA-signed appcast, shipped from `release.sh`. ✅
 - **Later** — signed runtime verification on device.
+- **publik fork** — hidden-icon detection, ⌃⌥L, front Welcome window, non-blocking helper prompt. ✅
 
 ## Safety
 
@@ -98,4 +128,4 @@ and much appreciated.
 
 ## License
 
-[MIT](LICENSE) © 2026 Nghia Luong
+[MIT](LICENSE) © 2026 Nghia Luong. Fork changes © 2026 publik, same license.

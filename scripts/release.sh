@@ -7,7 +7,7 @@
 #
 # Prereqs (one-time):
 #   xcrun notarytool store-credentials lidless-notary \
-#       --apple-id "you@example.com" --team-id TAFDRXJZSR --password <app-specific-pw>
+#       --apple-id "you@example.com" --team-id R5R3ZS54LV --password <app-specific-pw>
 #   # Sparkle signing key (prints the base64 public key for Info.plist SUPublicEDKey):
 #   "$(./scripts/release.sh --print-sparkle-tool generate_keys)"   # or run generate_keys directly
 #
@@ -23,7 +23,8 @@ APP_NAME="Lidless"
 BUILD="build/release"
 ARCHIVE="$BUILD/$APP_NAME.xcarchive"
 EXPORT="$BUILD/export"
-NOTARY_PROFILE="${NOTARY_PROFILE:-lidless-notary}"
+NOTARY_PROFILE="${NOTARY_PROFILE:-AC_PASSWORD}"
+SIGN_IDENTITY="${SIGN_IDENTITY:-Developer ID Application: Mann Bellani (R5R3ZS54LV)}"
 PUBLISH="${PUBLISH:-1}"
 
 # Signing workspace: generate_appcast scans this directory and (re)writes
@@ -35,7 +36,7 @@ APPCAST="$UPDATES_DIR/appcast.xml"
 # at https://<user>.github.io/<repo>/, matching SUFeedURL .../Lidless/appcast.xml.
 PAGES_APPCAST="docs/appcast.xml"
 # Stable base URL the appcast enclosures point at (GitHub Release asset downloads).
-DOWNLOAD_URL_PREFIX="${DOWNLOAD_URL_PREFIX:-https://github.com/nghialuong/Lidless/releases/latest/download}"
+DOWNLOAD_URL_PREFIX="${DOWNLOAD_URL_PREFIX:-https://github.com/Blueturboguy07/Lidless/releases/latest/download}"
 
 command -v xcodegen >/dev/null || { echo "need xcodegen (brew install xcodegen)"; exit 1; }
 
@@ -120,6 +121,16 @@ cp -R "$APP" "$STAGING/"
 ln -s /Applications "$STAGING/Applications"
 hdiutil create -volname "$APP_NAME" -srcfolder "$STAGING" -ov -format UDZO "$DMG"
 
+# Sign, notarize and staple the DMG itself as well. The app inside carries its
+# own ticket, but an unstapled DMG has to be checked against Apple over the
+# network, and for a user who is offline or filtered that failure reads as
+# "damaged". Sign first — signing changes the bytes, which would void a ticket.
+echo "→ [6b/7] sign + notarize + staple DMG"
+codesign --force --sign "$SIGN_IDENTITY" --timestamp "$DMG"
+xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
+xcrun stapler staple "$DMG"
+spctl -a -t open --context context:primary-signature -vv "$DMG"
+
 echo "→ [7/7] sign + generate Sparkle appcast"
 GENERATE_APPCAST=$(sparkle_tool generate_appcast)
 # Start from a clean workspace each release. Every build of the same marketing
@@ -143,7 +154,13 @@ if [ "$PUBLISH" = "1" ]; then
     TAG="v${VERSION}"
     echo "→ publish: GitHub Release $TAG (DMG asset) + appcast on Pages"
     # Create the release if absent, then upload the DMG (clobber to allow re-runs).
-    gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --notes "Lidless $VERSION (build $BUILD_NUMBER)"
+    if ! gh release view "$TAG" >/dev/null 2>&1; then
+        if [ -n "${RELEASE_NOTES_FILE:-}" ] && [ -f "$RELEASE_NOTES_FILE" ]; then
+            gh release create "$TAG" --title "Lidless $VERSION" --notes-file "$RELEASE_NOTES_FILE"
+        else
+            gh release create "$TAG" --title "$TAG" --notes "Lidless $VERSION (build $BUILD_NUMBER)"
+        fi
+    fi
     gh release upload "$TAG" "$DMG" --clobber
     echo "→ commit + push the published feed so GitHub Pages serves it at SUFeedURL:"
     echo "  git add $PAGES_APPCAST && git commit -m \"appcast: $VERSION (build $BUILD_NUMBER)\" && git push"
