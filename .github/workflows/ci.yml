@@ -7,6 +7,10 @@ on:
     branches: [main]
   pull_request:
 
+# publik telemetry is off on build machines: a test run is not a user.
+env:
+  DO_NOT_TRACK: "1"
+
 jobs:
   build-test:
     runs-on: macos-15
