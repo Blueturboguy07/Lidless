@@ -120,6 +120,15 @@ and a reboot always resets the underlying flag.
 
 To report a security issue, see [SECURITY.md](SECURITY.md).
 
+## Usage counts
+
+Lidless sends two anonymous events to publik: `app_opened` at launch and
+`active_session` every 30 minutes while it runs. Each event holds the app name,
+the app version, the operating system, the CPU type and a random install ID.
+Nothing else is sent: no settings, no power or battery data.
+To turn it off, set `DO_NOT_TRACK=1` in the environment that starts Lidless.
+Details and the other ways to opt out: <https://publikhq.com/skills/telemetry.md>
+
 ## Support
 
 Lidless is free and open source. If it saves you some hassle, you can
