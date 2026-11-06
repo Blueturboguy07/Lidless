@@ -1,0 +1,108 @@
+name: publik build
+
+# Builds the UNSIGNED universal Lidless.app and uploads it as a workflow artifact.
+# It does not sign, notarize, create a release or touch the Sparkle feed.
+# Signing, notarization and the DMG happen on the release Mac (scripts/release.sh
+# does the same steps for a local build).
+
+on:
+  push:
+    branches: ['telemetry/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publik-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: macOS universal (unsigned)
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The build number is the commit count, as in scripts/release.sh.
+          fetch-depth: 0
+
+      - name: Select Xcode 26.2 (the Xcode that built 0.1.4)
+        run: |
+          X=/Applications/Xcode_26.2.app
+          [ -d "$X" ] || X="$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+          sudo xcode-select -s "$X/Contents/Developer"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: |
+          # 0.1.4 shipped Sparkle 2.9.6. project.yml says "from: 2.6.0", which
+          # would pick a newer Sparkle today. Pin it for this build only.
+          sed -i '' 's/^    from: 2\.6\.0$/    exactVersion: 2.9.6/' project.yml
+          grep -n 'exactVersion: 2.9.6' project.yml
+          xcodegen generate
+
+      - name: Archive (Release, unsigned)
+        run: |
+          BUILD_NUMBER="$(git rev-list --count HEAD)"
+          echo "build number: $BUILD_NUMBER"
+          mkdir -p build
+          xcodebuild archive \
+            -scheme Lidless \
+            -destination 'generic/platform=macOS' \
+            -archivePath build/Lidless.xcarchive \
+            -configuration Release \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            CODE_SIGNING_ALLOWED=NO \
+            > build/archive.log 2>&1 || {
+              grep -n -E "error:|BUILD FAILED|ARCHIVE FAILED" build/archive.log | tail -n 60
+              tail -n 40 build/archive.log
+              exit 1
+            }
+          tail -n 5 build/archive.log
+
+      - name: Check and pack the app
+        run: |
+          set -euo pipefail
+          APP=build/Lidless.xcarchive/Products/Applications/Lidless.app
+          PL="$APP/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' -c 'Print :CFBundleVersion' -c 'Print :CFBundleIdentifier' "$PL"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PL")" = "com.publikhq.lidless"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PL")" = "$(git rev-list --count HEAD)"
+          lipo -archs "$APP/Contents/MacOS/Lidless"
+          lipo -archs "$APP/Contents/MacOS/LidlessHelper"
+          lipo "$APP/Contents/MacOS/Lidless" -verify_arch arm64 x86_64
+          lipo "$APP/Contents/MacOS/LidlessHelper" -verify_arch arm64 x86_64
+          plutil -lint "$APP/Contents/Library/LaunchDaemons/com.publikhq.lidless.helper.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Frameworks/Sparkle.framework/Versions/B/Resources/Info.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Frameworks/Sparkle.framework/Versions/B/Resources/Info.plist")" = "2.9.6"
+          # grep -c reads all of its input (grep -q would stop early and break the pipe).
+          strings -a "$APP/Contents/MacOS/Lidless" | grep -c 'publikhq.com/api/v1/telemetry'
+          ditto -c -k --keepParent "$APP" Lidless-unsigned.app.zip
+          shasum -a 256 Lidless-unsigned.app.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Lidless-macos-universal-unsigned
+          path: Lidless-unsigned.app.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      # Same command as ci.yml. It runs after the upload, so the artifact exists
+      # whatever the tests say.
+      - name: Unit tests
+        run: |
+          xcodebuild test \
+            -scheme Lidless-CI \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            > build/test.log 2>&1 || {
+              grep -n -E "error:|failed|FAILED" build/test.log | tail -n 80
+              tail -n 40 build/test.log
+              exit 1
+            }
+          grep -E "Executed [0-9]+ tests|TEST SUCCEEDED" build/test.log | tail -n 4

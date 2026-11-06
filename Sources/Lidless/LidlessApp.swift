@@ -4,6 +4,13 @@ import SwiftUI
 struct LidlessApp: App {
     @StateObject private var state = AppState()
 
+    init() {
+        // Anonymous usage counts (publik telemetry v1): app opened, active session.
+        // Runs on its own background thread. Off with DO_NOT_TRACK=1.
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+        PublikTelemetry.start(appSlug: "lidless", appVersion: version)
+    }
+
     var body: some Scene {
         MenuBarExtra {
             MenuContent()
