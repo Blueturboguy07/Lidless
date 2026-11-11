@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// The Sign in with publik window: the first window Lidless shows, before the
