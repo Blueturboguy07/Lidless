@@ -46,10 +46,17 @@ jobs:
           grep -n 'exactVersion: 2.9.6' project.yml
           xcodegen generate
 
+      # PUBLIK_APP_TOKEN is a build setting that Info.plist expands into
+      # PublikAppToken (see project.yml): the publik module reads it at the Sign
+      # in with publik gate. Without the repo secret the build still completes,
+      # and the self-test below says so.
       - name: Archive (Release, unsigned)
+        env:
+          PUBLIK_APP_TOKEN: ${{ secrets.PUBLIK_APP_TOKEN }}
         run: |
           BUILD_NUMBER="$(git rev-list --count HEAD)"
           echo "build number: $BUILD_NUMBER"
+          [ -n "${PUBLIK_APP_TOKEN:-}" ] && echo "baking a ${#PUBLIK_APP_TOKEN}-character publik app token" || echo "::warning::No PUBLIK_APP_TOKEN secret: this build has no publik app token."
           mkdir -p build
           xcodebuild archive \
             -scheme Lidless \
@@ -57,6 +64,7 @@ jobs:
             -archivePath build/Lidless.xcarchive \
             -configuration Release \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            PUBLIK_APP_TOKEN="${PUBLIK_APP_TOKEN:-}" \
             CODE_SIGNING_ALLOWED=NO \
             > build/archive.log 2>&1 || {
               grep -n -E "error:|BUILD FAILED|ARCHIVE FAILED" build/archive.log | tail -n 60
@@ -80,10 +88,32 @@ jobs:
           plutil -lint "$APP/Contents/Library/LaunchDaemons/com.publikhq.lidless.helper.plist"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Frameworks/Sparkle.framework/Versions/B/Resources/Info.plist"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Frameworks/Sparkle.framework/Versions/B/Resources/Info.plist")" = "2.9.6"
+          # The publik module is in the binary: the gate's install call and the usage counts.
           # grep -c reads all of its input (grep -q would stop early and break the pipe).
-          strings -a "$APP/Contents/MacOS/Lidless" | grep -c 'publikhq.com/api/v1/telemetry'
+          strings -a "$APP/Contents/MacOS/Lidless" | grep -c '/api/v1/installs'
+          strings -a "$APP/Contents/MacOS/Lidless" | grep -c '/api/v1/telemetry'
           ditto -c -k --keepParent "$APP" Lidless-unsigned.app.zip
           shasum -a 256 Lidless-unsigned.app.zip
+
+      # The publik self-test (publikhq.com/skills/setup.md, step 6): the built
+      # app runs with PUBLIK_SELF_TEST=1, provisions its install with the baked
+      # token, reads GET /wallet from publik, prints one line and exits. The
+      # line proves the gate is on the start-up path of this build. Without the
+      # PUBLIK_APP_TOKEN secret the line says so and the step only warns.
+      - name: publik self-test (the built app)
+        env:
+          HAS_PUBLIK_APP_TOKEN: ${{ secrets.PUBLIK_APP_TOKEN != '' }}
+        run: |
+          APP=build/Lidless.xcarchive/Products/Applications/Lidless.app
+          version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")"
+          line="$(env -u PUBLIK_APP_TOKEN PUBLIK_SELF_TEST=1 "$APP/Contents/MacOS/Lidless" 2>/dev/null | tail -n 1 || true)"
+          echo "$line"
+          { echo "### publik self-test"; echo "\`$line\`"; } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$HAS_PUBLIK_APP_TOKEN" != "true" ]; then
+            echo "::warning::No PUBLIK_APP_TOKEN secret: the self-test cannot pass on this runner."
+            exit 0
+          fi
+          [ "$line" = "publik self-test: ok lidless $version" ]
 
       - uses: actions/upload-artifact@v4
         with:

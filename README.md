@@ -120,14 +120,31 @@ and a reboot always resets the underlying flag.
 
 To report a security issue, see [SECURITY.md](SECURITY.md).
 
-## Usage counts
+## Sign in with publik
 
-Lidless sends two anonymous events to publik: `app_opened` at launch and
-`active_session` every 30 minutes while it runs. Each event holds the app name,
-the app version, the operating system, the CPU type and a random install ID.
-Nothing else is sent: no settings, no power or battery data.
+Lidless opens with Sign in with publik, before the Welcome window. The publik
+module (`Sources/Lidless/Publik.swift`, from
+<https://publikhq.com/skills/setup.md>) holds the gate. At the first start on a
+Mac it provisions an install key with the build's app token
+(`POST /api/v1/installs`), opens the claim link in the browser, and polls
+`GET /api/v1/wallet` every 3 seconds, up to 10 minutes, until the install is
+claimed by a publik account. Without a connection it says "publik is not
+reachable. Check your connection." and offers Retry. Until the sign-in is done
+the menu bar popover offers only Sign in with publik and Quit. Lidless uses no
+AI, so there is no plan screen and no key to choose.
+
+The same module sends usage counts: `app_opened` at launch and `active_session`
+every 30 minutes while it runs, with the install key as the bearer. Each event
+holds the app name, the app version, the operating system, the CPU type and a
+random install ID. Nothing else is sent: no settings, no power or battery data.
 To turn it off, set `DO_NOT_TRACK=1` in the environment that starts Lidless.
 Details and the other ways to opt out: <https://publikhq.com/skills/telemetry.md>
+
+A built app proves the gate is on its start-up path with the self-test:
+`PUBLIK_SELF_TEST=1 Lidless.app/Contents/MacOS/Lidless` prints
+`publik self-test: ok lidless <version>` after one real `GET /api/v1/wallet`,
+then exits. `scripts/release.sh` runs it on the exported app before it
+notarizes.
 
 ## Support
 

@@ -40,6 +40,28 @@ DOWNLOAD_URL_PREFIX="${DOWNLOAD_URL_PREFIX:-https://github.com/Blueturboguy07/Li
 
 command -v xcodegen >/dev/null || { echo "need xcodegen (brew install xcodegen)"; exit 1; }
 
+# --- The publik app token ---
+# `pat_lidless_…`: the build setting Info.plist expands into PublikAppToken,
+# which the publik module (Sources/Lidless/Publik.swift) reads to provision each
+# Mac's install at the Sign in with publik gate. It lives in the gitignored file
+# .publik-app-token at the repo root (mint one for the `lidless` listing with
+# publikhq.com/skills/api.md step 2, OUT=.publik-app-token), or in the
+# PUBLIK_APP_TOKEN environment variable. It is read straight into xcodebuild's
+# argument list and never echoed. A release without it still builds, but every
+# install then stops at "This build has no publik app token", so this refuses.
+PUBLIK_APP_TOKEN_FILE="${PUBLIK_APP_TOKEN_FILE:-.publik-app-token}"
+if [ -z "${PUBLIK_APP_TOKEN:-}" ]; then
+    if [ ! -s "$PUBLIK_APP_TOKEN_FILE" ]; then
+        echo "✗ no publik app token: put the pat_lidless_ token in $PUBLIK_APP_TOKEN_FILE (or set PUBLIK_APP_TOKEN)" >&2
+        exit 1
+    fi
+    PUBLIK_APP_TOKEN="$(tr -d '[:space:]' < "$PUBLIK_APP_TOKEN_FILE")"
+fi
+case "$PUBLIK_APP_TOKEN" in
+    pat_lidless_*) ;;
+    *) echo "✗ the publik app token is not a pat_lidless_ token (found ${#PUBLIK_APP_TOKEN} characters)" >&2; exit 1 ;;
+esac
+
 # --- Resolve a Sparkle CLI tool (generate_appcast / generate_keys / sign_update) ---
 # Prefers the version-pinned tools vendored at scripts/sparkle/bin/ (deterministic,
 # works on a clean machine), then falls back to the SPM artifact cache, any bin/
@@ -92,7 +114,8 @@ xcodebuild archive \
     -destination 'generic/platform=macOS' \
     -archivePath "$ARCHIVE" \
     -configuration Release \
-    CURRENT_PROJECT_VERSION="$BUILD_NUMBER"
+    CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+    PUBLIK_APP_TOKEN="$PUBLIK_APP_TOKEN"
 
 echo "→ [3/7] export"
 xcodebuild -exportArchive \
@@ -103,6 +126,18 @@ xcodebuild -exportArchive \
 APP="$EXPORT/$APP_NAME.app"
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist")
 DMG="$BUILD/${APP_NAME}-${VERSION}.dmg"
+
+# The publik self-test (publikhq.com/skills/setup.md step 6): the built app runs
+# with PUBLIK_SELF_TEST=1, provisions its install with the baked token, reads
+# GET /wallet from publik, prints one line and exits. The line proves the gate
+# is on the start-up path of this exact build.
+echo "→ [3b/7] publik self-test (the exported app)"
+SELF_TEST="$(PUBLIK_SELF_TEST=1 "$APP/Contents/MacOS/$APP_NAME" 2>/dev/null | tail -n 1 || true)"
+echo "  $SELF_TEST"
+if [ "$SELF_TEST" != "publik self-test: ok lidless $VERSION" ]; then
+    echo "✗ the publik self-test did not pass (expected: publik self-test: ok lidless $VERSION)" >&2
+    exit 1
+fi
 
 # Notarize + staple the APP first, so the copy that ends up in the DMG carries
 # its own stapled ticket (works even offline, dragged to /Applications).

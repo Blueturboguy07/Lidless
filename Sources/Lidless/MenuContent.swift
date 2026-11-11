@@ -25,92 +25,142 @@ struct MenuContent: View {
                 .padding(.horizontal, hInset)
                 .padding(.top, 8)
 
-            Divider()
-                .padding(.horizontal, hInset)
-                .padding(.top, 14)
-
-            PrimaryToggleRow()
-                .padding(.horizontal, hInset)
-
-            KeepAwakeDurationRow()
-                .padding(.horizontal, hInset)
-
-            if !state.autoWarningReasons.isEmpty {
-                AutoDisabledWarning(reasons: state.autoWarningReasons)
+            if state.publikSignedIn {
+                signedInContent
+            } else {
+                PublikGateNotice()
                     .padding(.horizontal, hInset)
-                    .padding(.bottom, 10)
+                    .padding(.top, 14)
+                    .padding(.bottom, 14)
             }
-
-            Divider()
-                .padding(.horizontal, hInset)
-
-            StatusStrip()
-                .padding(.horizontal, hInset)
-                .padding(.vertical, 10)
-
-            if state.menuBarIconHidden {
-                HiddenIconNotice(compact: true)
-                    .padding(.horizontal, hInset)
-                    .padding(.bottom, 10)
-            }
-
-            // Three disjoint slots, strongest first: something changed the flag
-            // behind our back, we couldn't confirm our own change, and the
-            // ordinary error/safety note.
-            if let notice = state.externalNotice {
-                Label(notice, systemImage: "exclamationmark.triangle.fill")
-                    .font(.callout)
-                    .foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, hInset)
-                    .padding(.bottom, 10)
-            }
-
-            if let notice = state.verificationNotice {
-                Label(notice, systemImage: "questionmark.circle.fill")
-                    .font(.callout)
-                    .foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, hInset)
-                    .padding(.bottom, 10)
-            }
-
-            if let err = state.lastError {
-                Label(err, systemImage: "info.circle")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, hInset)
-                    .padding(.bottom, 10)
-            }
-
-            Divider()
-                .padding(.horizontal, hInset)
-
-            SafetySection()
-                .padding(.horizontal, hInset)
-                .padding(.top, 12)
-
-            Divider()
-                .padding(.horizontal, hInset)
-                .padding(.top, 12)
-
-            AutomaticSection()
-                .padding(.horizontal, hInset)
-                .padding(.top, 12)
-
-            Divider()
-                .padding(.horizontal, hInset)
-                .padding(.top, 12)
-
-            FooterActions()
-                .padding(.horizontal, hInset)
-                .padding(.bottom, 14)
         }
         .frame(width: 360)
         // The popover is the moment the user actually looks at the toggle, so
         // it's the moment it most needs to be true.
         .onAppear { state.refreshState() }
+    }
+
+    /// The popover's controls, shown once the person is signed in to publik.
+    @ViewBuilder
+    private var signedInContent: some View {
+        Divider()
+            .padding(.horizontal, hInset)
+            .padding(.top, 14)
+
+        PrimaryToggleRow()
+            .padding(.horizontal, hInset)
+
+        KeepAwakeDurationRow()
+            .padding(.horizontal, hInset)
+
+        if !state.autoWarningReasons.isEmpty {
+            AutoDisabledWarning(reasons: state.autoWarningReasons)
+                .padding(.horizontal, hInset)
+                .padding(.bottom, 10)
+        }
+
+        Divider()
+            .padding(.horizontal, hInset)
+
+        StatusStrip()
+            .padding(.horizontal, hInset)
+            .padding(.vertical, 10)
+
+        if state.menuBarIconHidden {
+            HiddenIconNotice(compact: true)
+                .padding(.horizontal, hInset)
+                .padding(.bottom, 10)
+        }
+
+        // Three disjoint slots, strongest first: something changed the flag
+        // behind our back, we couldn't confirm our own change, and the
+        // ordinary error/safety note.
+        if let notice = state.externalNotice {
+            Label(notice, systemImage: "exclamationmark.triangle.fill")
+                .font(.callout)
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, hInset)
+                .padding(.bottom, 10)
+        }
+
+        if let notice = state.verificationNotice {
+            Label(notice, systemImage: "questionmark.circle.fill")
+                .font(.callout)
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, hInset)
+                .padding(.bottom, 10)
+        }
+
+        if let err = state.lastError {
+            Label(err, systemImage: "info.circle")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, hInset)
+                .padding(.bottom, 10)
+        }
+
+        Divider()
+            .padding(.horizontal, hInset)
+
+        SafetySection()
+            .padding(.horizontal, hInset)
+            .padding(.top, 12)
+
+        Divider()
+            .padding(.horizontal, hInset)
+            .padding(.top, 12)
+
+        AutomaticSection()
+            .padding(.horizontal, hInset)
+            .padding(.top, 12)
+
+        Divider()
+            .padding(.horizontal, hInset)
+            .padding(.top, 12)
+
+        FooterActions()
+            .padding(.horizontal, hInset)
+            .padding(.bottom, 14)
+    }
+}
+
+// MARK: - Sign in with publik
+
+/// Shown in the popover until the person is signed in to publik. The gate
+/// window (Sources/Lidless/PublikGateWindow.swift) holds the sign-in; this only
+/// brings it back, and offers Quit. The keep-awake controls come after.
+private struct PublikGateNotice: View {
+    @EnvironmentObject var state: AppState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Sign in with publik")
+                .font(.headline)
+            Text("Lidless opens when you are signed in.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Button("Sign in with publik") {
+                    MenuBarExtraPanel.dismiss()
+                    state.showPublikGate()
+                }
+                .keyboardShortcut(.defaultAction)
+                Spacer()
+                Button {
+                    NSApplication.shared.terminate(nil)
+                } label: {
+                    Label("Quit Lidless", systemImage: "power")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut("q")
+            }
+            .font(.callout)
+        }
     }
 }
 

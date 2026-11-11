@@ -2,14 +2,11 @@ import SwiftUI
 
 @main
 struct LidlessApp: App {
+    // `AppState` runs Sign in with publik first (Sources/Lidless/Publik.swift):
+    // the gate window opens before the Welcome window, the popover offers no
+    // control until the person is signed in, and the same module then counts
+    // usage (app opened, active session). Off with DO_NOT_TRACK=1.
     @StateObject private var state = AppState()
-
-    init() {
-        // Anonymous usage counts (publik telemetry v1): app opened, active session.
-        // Runs on its own background thread. Off with DO_NOT_TRACK=1.
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
-        PublikTelemetry.start(appSlug: "lidless", appVersion: version)
-    }
 
     var body: some Scene {
         MenuBarExtra {
