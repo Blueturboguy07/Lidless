@@ -39,9 +39,18 @@ targets:
         SUPublicEDKey: +JYoEV123eA8q86/K4ehjNehQB0q31HpEBaVmiDjYXs=
         SUEnableAutomaticChecks: true
         SUScheduledCheckInterval: 86400
+        # The publik app token (`pat_lidless_…`), the machine route into
+        # POST /api/v1/installs for Sign in with publik. Never committed: Xcode
+        # expands the build setting at build time, so a release passes
+        # PUBLIK_APP_TOKEN=pat_lidless_… to xcodebuild (scripts/release.sh reads
+        # it from the gitignored .publik-app-token; CI from the repo secret of
+        # the same name). An undefined setting expands to the empty string,
+        # which the module refuses: that build says "This build has no publik
+        # app token" at the gate instead of sending nonsense to publik.
+        PublikAppToken: "$(PUBLIK_APP_TOKEN)"
     settings:
       base:
-        MARKETING_VERSION: "0.1.5"
+        MARKETING_VERSION: "0.1.6"
         CURRENT_PROJECT_VERSION: "1"
         ENABLE_HARDENED_RUNTIME: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -124,6 +133,9 @@ targets:
       # bundle — which can't link the app target (Sparkle).
       - Sources/Lidless/SettingsWindowController.swift
       - Sources/Lidless/MenuBarExtraPanel.swift
+      # The publik module is Foundation only, so the gate's words and the
+      # listing slug are covered here too.
+      - Sources/Lidless/Publik.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.publikhq.lidlessTests

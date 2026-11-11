@@ -41,3 +41,5 @@ dsa_priv*
 .env
 .env.*
 *.netrc
+# The publik app token scripts/release.sh bakes into Info.plist (see project.yml)
+.publik-app-token

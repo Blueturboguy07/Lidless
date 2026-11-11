@@ -71,6 +71,10 @@ final class AppState: ObservableObject {
     /// the camera housing. The menu still opens via `openMenu()` / ⌃⌥L.
     @Published var menuBarIconHidden = false
 
+    /// True once the person is signed in to publik (the gate passed). Until
+    /// then the popover shows the sign-in notice and the Welcome window waits.
+    @Published var publikSignedIn = false
+
     private let helper = HelperManager()
     /// Reads the flag on every path — `pmset -g` needs no privileges — and also
     /// writes it when the helper isn't installed.
@@ -79,6 +83,10 @@ final class AppState: ObservableObject {
     private let store = SettingsStore()
     private let loginItem = LoginItemManager()
     private lazy var onboarding = OnboardingController(state: self)
+    /// The Sign in with publik window (Publik.swift holds the gate).
+    private let publikGate = PublikGateWindowController()
+    /// A first run or a resumed onboarding shows the Welcome window after the gate.
+    private var onboardingWaitsForTheGate = false
 
     /// The app's Sparkle updater. Owned here rather than by `LidlessApp` so the
     /// settings window controller below can hand it to `SettingsView`.
@@ -173,14 +181,16 @@ final class AppState: ObservableObject {
         hotKey = HotKeyManager { [weak self] in self?.openMenu() }
         // First launch shows onboarding once (persisted so closing it early won't
         // re-nag). A relaunch triggered mid-onboarding resumes the flow instead.
+        // Both wait for Sign in with publik: the gate is the first window.
         if store.loadResumeOnboarding() {
             store.saveResumeOnboarding(false)
-            DispatchQueue.main.async { [weak self] in self?.showOnboarding() }
+            onboardingWaitsForTheGate = true
         } else if !onboardingComplete {
             onboardingComplete = true
             store.saveOnboardingComplete(true)
-            DispatchQueue.main.async { [weak self] in self?.showOnboarding() }
+            onboardingWaitsForTheGate = true
         }
+        DispatchQueue.main.async { [weak self] in self?.runThePublikGate() }
     }
 
     deinit {
@@ -190,6 +200,37 @@ final class AppState: ObservableObject {
         if let screenObserver {
             NotificationCenter.default.removeObserver(screenObserver)
         }
+    }
+
+    // MARK: Sign in with publik
+
+    /// The gate from Publik.swift: the first window, before the Welcome window
+    /// and before the popover offers any control. `Publik.ensureSignedIn`
+    /// shows Sign in with publik until this Mac's install is claimed by the
+    /// person's publik account, starts the usage counts, and then returns.
+    /// Lidless uses no AI (`Publik.usesAI` is false), so there is no plan
+    /// screen. With `PUBLIK_SELF_TEST=1` it prints the self-test line and
+    /// exits, so no window is shown in that mode.
+    private func runThePublikGate() {
+        if ProcessInfo.processInfo.environment["PUBLIK_SELF_TEST"] == nil {
+            publikGate.show()
+        }
+        let gate = publikGate
+        Task { @MainActor [weak self] in
+            _ = await Publik.ensureSignedIn(gate.model)
+            gate.close()
+            guard let self else { return }
+            self.publikSignedIn = true
+            if self.onboardingWaitsForTheGate {
+                self.onboardingWaitsForTheGate = false
+                self.showOnboarding()
+            }
+        }
+    }
+
+    /// Brings the Sign in with publik window back (the popover's button).
+    func showPublikGate() {
+        publikGate.show()
     }
 
     // MARK: Onboarding

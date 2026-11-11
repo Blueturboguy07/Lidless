@@ -38,3 +38,12 @@ just runs the same `Lidless-CI` scheme.
 - **Release pipeline:** `scripts/release.sh` (archive → notarize → DMG →
   EdDSA-signed Sparkle appcast). Run on a Mac with the Developer ID cert and the
   `lidless-notary` keychain profile.
+- **Sign in with publik:** `Sources/Lidless/Publik.swift` is the publik module
+  (one file, `static let appSlug = "lidless"`, `usesAI = false`). `AppState`
+  runs its gate first; `PublikGateWindow.swift` draws the screens. The module
+  reads the app token from `PublikAppToken` in Info.plist, which `project.yml`
+  expands from the `PUBLIK_APP_TOKEN` build setting. `scripts/release.sh`
+  reads the token from the gitignored `.publik-app-token` at the repo root (a
+  `pat_lidless_…` token minted with publikhq.com/skills/api.md step 2) and
+  refuses to build without it; CI passes the `PUBLIK_APP_TOKEN` repo secret.
+  Never commit the token file. See the root `AGENTS.md`.
